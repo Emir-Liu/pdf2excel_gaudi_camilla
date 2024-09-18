@@ -1,0 +1,5 @@
+pymupdf
+openpyxl
+fastapi
+python-multipart
+uvicorn
