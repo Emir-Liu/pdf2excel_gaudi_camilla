@@ -2,7 +2,7 @@
 import axios from "axios"
 
 // 后端地址
-export const DOMAIN = '127.0.0.1:8000'
+export const DOMAIN = 'localhost:12305'
 export const baseUrl = 'http://' + DOMAIN
 
 axios.defaults.baseURL = baseUrl

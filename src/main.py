@@ -14,7 +14,7 @@ from fastapi.responses import StreamingResponse
 import uvicorn
 import openpyxl
 
-from configs import TITLE, VERSION
+from configs import TITLE, VERSION, IP
 from function.pdf2excel import func_pdf2excel
 
 app = FastAPI(title=TITLE, version=VERSION)
@@ -54,6 +54,8 @@ async def upload_pdf(file: UploadFile = File(...)):
 if __name__ == "__main__":
     uvicorn.run(
         app,
+        # host=IP,
+        port=12305,
         # host=server_ip,
         # port=server_port
     )

@@ -14,7 +14,10 @@ export default defineConfig({
     }
   },
   server: {
-    host:'172.16.0.54',
-    port:12306
+    host:'0.0.0.0',
+    port:8001,
+    headers:{
+      'access-control-allow-origin': '*'
+    }
   }
 })

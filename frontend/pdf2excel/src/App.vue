@@ -18,7 +18,7 @@
     const formData = new FormData();
     formData.append('file', element.files[0]);
     try {
-      const response = await axios.post('http://127.0.0.1:8000/uploadpdf/', formData, {
+      const response = await axios.post('http://127.0.0.1:12305/uploadpdf/', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         },
