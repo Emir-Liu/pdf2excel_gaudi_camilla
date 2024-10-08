@@ -41,9 +41,7 @@ async def upload_pdf(file: UploadFile = File(...)):
     output.seek(0)  # 重置文件指针到开始位置
 
     # 创建一个 StreamingResponse 对象
-    headers = {
-        "Content-Disposition": f'attachment; filename="sheet_{new_file_name}.xlsx"'
-    }
+    headers = {"Content-Disposition": f'attachment; filename="sheet.xlsx"'}
     return StreamingResponse(
         output,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -54,7 +52,7 @@ async def upload_pdf(file: UploadFile = File(...)):
 if __name__ == "__main__":
     uvicorn.run(
         app,
-        # host=IP,
+        host=IP,
         port=12305,
         # host=server_ip,
         # port=server_port
