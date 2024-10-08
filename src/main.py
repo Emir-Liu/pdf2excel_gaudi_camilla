@@ -30,8 +30,8 @@ app.add_middleware(
 @app.post("/uploadpdf/")
 async def upload_pdf(file: UploadFile = File(...)):
     contents = await file.read()
-    file_name = file.filename
-    new_file_name = file_name.replace(" ", "_")
+    # file_name = file.filename
+    # new_file_name = file_name.replace(" ", "_")
     bytes_io = io.BytesIO(contents)
     excel_content = func_pdf2excel(pdf_content=bytes_io)
 

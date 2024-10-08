@@ -136,7 +136,21 @@ def func_pdf2excel(pdf_content):
     # ORG_PDF_PATH = "D:/projects/pdf2excel_supplier_purchase/others/org_sample_file/2411082002 SDAU-P0014217.pdf"
     # # read pdf file
     # doc = pymupdf.open(ORG_PDF_PATH)
+
+    # convert reading local file into reading data stream,
+    # avoiding the need to save the file locally
     doc = pymupdf.open(stream=pdf_content)
+
+    # remove annotation information from pdf files
+    # to avoid the impact of annotation information on form extraction
+    for page in doc:
+
+        for annot in page.annots():
+            page.delete_annot(annot=annot)
+
+    doc.save("a.pdf")
+
+    # get table in pdf file
     table_list, table_df_list = get_table(doc=doc)
 
     out_path = "a.pdf"
