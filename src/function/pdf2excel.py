@@ -57,16 +57,26 @@ def get_table(doc: Document) -> Tuple[List[Table], List[DataFrame]]:
                 table_list.append(table)
                 table_df_list.append(table_df)
 
-            for cell in table.cells:
-                table.page.draw_rect(cell, color=(1, 0, 0))
+            # for cell in table.cells:
+            #     table.page.draw_rect(cell, color=(1, 0, 0))
 
-    for table in table_list:
-        table.page.draw_rect(table.bbox, color=(0, 1, 0))
+    # for table in table_list:
+    #     table.page.draw_rect(table.bbox, color=(0, 1, 0))
 
     return table_list, table_df_list
 
 
-def change_df2target(table_df: DataFrame) -> DataFrame:
+def change_df2target(
+    table_df: DataFrame, order_number="", style_number="", order_type=""
+) -> DataFrame:
+    """Convert the original tabular data in PDF file to target format of tabular data
+
+    Args:
+        table_df (DataFrame): original tabular data
+
+    Returns:
+        DataFrame: target format of tabular data
+    """
 
     table_json = json.loads(table_df.to_json(orient="records"))
     print("get doc")
@@ -80,11 +90,13 @@ def change_df2target(table_df: DataFrame) -> DataFrame:
                 size_json = table_json[table_json_idx + 1]
                 qua_json = table_json[table_json_idx + 2]
                 size_qua_pair_json = {}
+                proportion_pair_json = {}
                 for key in size_json:
                     if size_json[key] and qua_json[key] != "Quantity":
                         tmp_size = size_json[key]
                         tmp_qua = qua_json[key]
                         print(f'color_json["Qty"]:{color_json["Qty"]}')
+                        proportion_pair_json[tmp_size] = int(tmp_qua)
                         if int(color_json["Qty"]) == 0:
                             size_qua_pair_json[tmp_size] = int(tmp_qua)
 
@@ -97,6 +109,25 @@ def change_df2target(table_df: DataFrame) -> DataFrame:
                         )
 
                 tmp_table_json.update(size_qua_pair_json)
+                if tmp_table_json["Pack/Loose"] == "Pack":
+                    proportion_str = ":".join(
+                        str(val) for val in proportion_pair_json.values()
+                    )
+                    # proportion_list = []
+                    # for val in proportion_pair_json.values():
+                    #     proportion_list
+                    num_per_pack = sum(proportion_pair_json.values())
+
+                    if num_per_pack != int(tmp_table_json["Pack size"]):
+                        tmp_table_json["备注"] = (
+                            f"配比{proportion_str}/ {tmp_table_json['Pack size']}件(注意：数量不一致)"
+                        )
+                    else:
+                        tmp_table_json["备注"] = (
+                            f"配比{proportion_str}/ {num_per_pack}件"
+                        )
+                else:
+                    tmp_table_json["备注"] = "可溢2%"
                 new_table_json.append(tmp_table_json)
         else:
             pass
@@ -110,18 +141,46 @@ def change_df2target(table_df: DataFrame) -> DataFrame:
     df = df.drop("Pack size", axis=1)
     df = df.drop("Unit price", axis=1)
     df = df.drop("Total (USD)", axis=1)
-    df = df.drop("Qty", axis=1)
+    # df = df.drop("Qty", axis=1)
     # df.fillna(0, inplace=True)
     # 将值为0的元素替换为NaN
+    df["Qty"] = df["Qty"].astype(int)
     df.replace(0, np.nan, inplace=True)
     df = df.rename(
-        columns={"Colour": "颜色色号", "Pack/Loose": "包装方式", "Total": "合计"}
+        columns={
+            "Colour": "颜色色号",
+            "Pack/Loose": "包装方式",
+            "Total": "合计",
+            "Qty": "包数",
+        }
     )
 
     df = df.sort_index(axis=1)
-    new_order = ["颜色色号"] + [col for col in df.columns if col != "颜色色号"]
+    # 对列进行排序 款号 颜色色号 PO号 订单形式 4 ... 18 合计 包装方式 备注 包数
+    front_list = ["款号", "颜色色号", "PO号", "订单形式"]
+    end_list = ["合计", "包装方式", "备注", "包数"]
+    new_order = (
+        front_list
+        + [col for col in df.columns if col not in front_list + end_list]
+        + end_list
+    )
+
+    df["款号"] = style_number
+    df["PO号"] = order_number
+    df["订单形式"] = order_type
+
     # new_order = ['颜色色号color'] + [col for col in df.columns if col != '颜色色号color']
+    print(f"new_order:{new_order}")
+    exist_index = df.columns
+    print(f"exist_index:{exist_index}")
+    for ordered_key in new_order:
+        if ordered_key in exist_index:
+            pass
+        else:
+            df[ordered_key] = pd.NA
     df = df[new_order]
+
+    print(f"df:{df}")
     df["合计"] = df["合计"].str.replace(",", "").astype(int)
 
     df["包装方式"] = df["包装方式"].replace("Pack", "配比包装")
@@ -148,13 +207,58 @@ def func_pdf2excel(pdf_content):
         for annot in page.annots():
             page.delete_annot(annot=annot)
 
-    doc.save("a.pdf")
+    # identify text in PDF file
+
+    # identify text in PDF file of page 1
+    page = doc[0]
+
+    page_content = page.get_text(option="dict")
+
+    print("get page content")
+    content_list = []
+    for block in page_content["blocks"]:
+        tmp_block_content_list = []
+        # tmp_block_content = ""
+        # page.draw_rect(pymupdf.Rect(block["bbox"]))
+        for line in block["lines"]:
+            # page.draw_rect(pymupdf.Rect(line["bbox"]))
+            for span in line["spans"]:
+                # page.draw_rect(pymupdf.Rect(span["bbox"]))
+                # tmp_block_content += span["text"]
+                tmp_block_content_list.append(span["text"])
+                # pass
+        tmp_block_content = " ".join(tmp_block_content_list)
+        print(f"tmp_block_content:{tmp_block_content}")
+        # while "  " in tmp_block_content:
+        #     tmp_block_content.replace("  ", " ")
+        while True:
+            if "  " in tmp_block_content:
+                tmp_block_content = tmp_block_content.replace("  ", " ")
+            else:
+                break
+        content_list.append(tmp_block_content)
+
+    order_number = ""
+    style_number = ""
+    order_type = ""
+    for tmp_content in content_list:
+        if "Order number:" in tmp_content:
+            order_number = tmp_content.split(" ")[-1]
+        elif "Style number:" in tmp_content:
+            style_number = tmp_content.split(" ")[-1]
+        elif "SUPPLIER PURCHASE ORDER" in tmp_content:
+            order_type = tmp_content.split("SUPPLIER PURCHASE ORDER")[0]
+
+    print(
+        f"order_number:{order_number}\nstyle_number:{style_number}\norder_type:{order_type}"
+    )
+    # doc.save("a.pdf")
 
     # get table in pdf file
     table_list, table_df_list = get_table(doc=doc)
 
-    out_path = "a.pdf"
-    doc.save(out_path)
+    # out_path = "a.pdf"
+    # doc.save(out_path)
     # get table info
 
     if len(table_df_list) == 1:
@@ -181,9 +285,9 @@ def func_pdf2excel(pdf_content):
                 tmp_table_df_reset.columns = col
                 table_df = pd.concat([table_df, tmp_table_df_reset], ignore_index=True)
 
-    df = change_df2target(table_df)
+    df = change_df2target(table_df, order_number, style_number, order_type)
 
-    df.to_excel("c.xlsx", index=False)
+    # df.to_excel("c.xlsx", index=False)
     # 创建一个Workbook对象
     wb = Workbook()
 
@@ -195,21 +299,86 @@ def func_pdf2excel(pdf_content):
         print(f"r:{r}")
         ws.append(r)
 
-    wb.save("back.xlsx")
+    # wb.save("back.xlsx")
     return wb
 
 
 if __name__ == "__main__":
 
-    # ORG_PDF_PATH = "D:/projects/pdf2excel_supplier_purchase/others/org_sample_file/2411082002 SDNZ-P0014217.pdf"
+    ORG_PDF_PATH = "D:/projects/pdf2excel_supplier_purchase/others/org_sample_file/2411082002 SDNZ-P0014217.pdf"
     # ORG_PDF_PATH = "D:/projects/pdf2excel_supplier_purchase/others/org_sample_file/2411082002 SDAU-P0014217.pdf"
-    ORG_PDF_PATH = "D:/projects/pdf2excel_supplier_purchase/others/org_sample_file/2411082002 SDAU-P0014217_annot.pdf"
+    # ORG_PDF_PATH = "D:/projects/pdf2excel_supplier_purchase/others/org_sample_file/2411082002 SDAU-P0014217_annot.pdf"
     # read pdf file
     doc = pymupdf.open(ORG_PDF_PATH)
+
+    # remove annotation information from pdf files
+    # to avoid the impact of annotation information on form extraction
+    for page in doc:
+        for annot in page.annots():
+            page.delete_annot(annot=annot)
+
+    # identify text in PDF file of page 1
+    page = doc[0]
+
+    page_content = page.get_text(option="dict")
+
+    print("get page content")
+    content_list = []
+    for block in page_content["blocks"]:
+        tmp_block_content_list = []
+        # tmp_block_content = ""
+        # page.draw_rect(pymupdf.Rect(block["bbox"]))
+        for line in block["lines"]:
+            # page.draw_rect(pymupdf.Rect(line["bbox"]))
+            for span in line["spans"]:
+                # page.draw_rect(pymupdf.Rect(span["bbox"]))
+                # tmp_block_content += span["text"]
+                tmp_block_content_list.append(span["text"])
+                # pass
+        tmp_block_content = " ".join(tmp_block_content_list)
+        print(f"tmp_block_content:{tmp_block_content}")
+        # while "  " in tmp_block_content:
+        #     tmp_block_content.replace("  ", " ")
+        while True:
+            if "  " in tmp_block_content:
+                tmp_block_content = tmp_block_content.replace("  ", " ")
+            else:
+                break
+        content_list.append(tmp_block_content)
+
+    order_number = ""
+    style_number = ""
+    order_type = ""
+    for tmp_content in content_list:
+        if "Order number:" in tmp_content:
+            order_number = tmp_content.split(" ")[-1]
+        elif "Style number:" in tmp_content:
+            style_number = tmp_content.split(" ")[-1]
+        elif "SUPPLIER PURCHASE ORDER" in tmp_content:
+            order_type = tmp_content.split("SUPPLIER PURCHASE ORDER")[0]
+
+    print(
+        f"order_number:{order_number}\nstyle_number:{style_number}\norder_type:{order_type}"
+    )
+
+    for page in doc:
+
+        page_content = page.get_text(option="dict")
+
+        print("get page content")
+
+        for block in page_content["blocks"]:
+            # page.draw_rect(pymupdf.Rect(block["bbox"]))
+            for line in block["lines"]:
+                # page.draw_rect(pymupdf.Rect(line["bbox"]))
+                for span in line["spans"]:
+                    # page.draw_rect(pymupdf.Rect(span["bbox"]))
+                    pass
+    out_path = "block.pdf"
+    doc.save(out_path)
+
     table_list, table_df_list = get_table(doc=doc)
 
-    out_path = "a.pdf"
-    doc.save(out_path)
     # get table info
 
     if len(table_df_list) == 1:
@@ -236,6 +405,6 @@ if __name__ == "__main__":
                 tmp_table_df_reset.columns = col
                 table_df = pd.concat([table_df, tmp_table_df_reset], ignore_index=True)
 
-    df = change_df2target(table_df)
+    df = change_df2target(table_df, order_number, style_number, order_type)
 
     df.to_excel("c.xlsx", index=False)
