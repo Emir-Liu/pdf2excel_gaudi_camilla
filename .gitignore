@@ -3,3 +3,4 @@
 /src/**/*.pdf
 /src/**/*.xlsx
 ~*
+/frontend/pdf2excel/dist/
